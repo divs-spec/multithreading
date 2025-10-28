@@ -5,17 +5,20 @@ import java.util.*;
 
 public class Solution extends JPanel {
     private static final int CELL_SIZE = 40;
-    private int n = 10, m = 10;
+    private int n = 8, m = 8;
     private int[][] grid = new int[n][m];
     private int[][] dist = new int[n][m];
     private boolean[][] vis = new boolean[n][m];
     private boolean running = false;
 
-    public Solution() {
+    private JTextArea logArea; // To show internal BFS working
+
+    public Solution(JTextArea logArea) {
+        this.logArea = logArea;
         setPreferredSize(new Dimension(m * CELL_SIZE, n * CELL_SIZE));
         setBackground(Color.WHITE);
 
-        // Mouse click toggles between 0 and 1
+        // Mouse click to toggle 0/1
         addMouseListener(new MouseAdapter() {
             public void mousePressed(MouseEvent e) {
                 if (running) return;
@@ -29,10 +32,13 @@ public class Solution extends JPanel {
         });
     }
 
+    private void log(String text) {
+        SwingUtilities.invokeLater(() -> logArea.append(text + "\n"));
+    }
+
     private void bfsVisual() {
         running = true;
         Queue<int[]> q = new LinkedList<>();
-
         for (int i = 0; i < n; i++) {
             Arrays.fill(dist[i], 0);
             Arrays.fill(vis[i], false);
@@ -45,6 +51,7 @@ public class Solution extends JPanel {
                     q.add(new int[]{i, j});
                     vis[i][j] = true;
                     dist[i][j] = 0;
+                    log("Added source (" + i + "," + j + ") to queue");
                 }
             }
         }
@@ -52,13 +59,15 @@ public class Solution extends JPanel {
         int[] dx = {-1, 1, 0, 0};
         int[] dy = {0, 0, -1, 1};
 
+        // Multithreaded BFS
         new Thread(() -> {
             try {
                 while (!q.isEmpty()) {
                     int[] cell = q.poll();
                     int x = cell[0], y = cell[1];
+                    log("Processing cell (" + x + "," + y + ") | dist=" + dist[x][y]);
                     repaint();
-                    Thread.sleep(150);
+                    Thread.sleep(200);
 
                     for (int k = 0; k < 4; k++) {
                         int nx = x + dx[k], ny = y + dy[k];
@@ -66,9 +75,16 @@ public class Solution extends JPanel {
                             vis[nx][ny] = true;
                             dist[nx][ny] = dist[x][y] + 1;
                             q.add(new int[]{nx, ny});
+                            log("  -> Added neighbor (" + nx + "," + ny + ") dist=" + dist[nx][ny]);
                         }
                     }
+
+                    // show current queue state
+                    StringBuilder qState = new StringBuilder("Queue: ");
+                    for (int[] a : q) qState.append("(").append(a[0]).append(",").append(a[1]).append(") ");
+                    log(qState.toString());
                 }
+                log("\n✅ BFS Completed!\n");
                 repaint();
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -84,13 +100,13 @@ public class Solution extends JPanel {
             Arrays.fill(dist[i], 0);
             Arrays.fill(vis[i], false);
         }
+        logArea.setText("");
         repaint();
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
                 if (grid[i][j] == 1) {
@@ -111,25 +127,43 @@ public class Solution extends JPanel {
     }
 
     public static void main(String[] args) {
-        JFrame frame = new JFrame("Interactive BFS Visualization");
-        Solution panel = new Solution();
+        JFrame frame = new JFrame("BFS Visualization with Working (Multithreaded)");
+
+        JTextArea logArea = new JTextArea(15, 25);
+        logArea.setEditable(false);
+        JScrollPane scroll = new JScrollPane(logArea);
+        scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+
+        Solution panel = new Solution(logArea);
 
         JButton startBtn = new JButton("▶ Start BFS");
         JButton resetBtn = new JButton("🔁 Reset");
 
         startBtn.addActionListener(e -> {
-            if (!panel.running) panel.bfsVisual();
+            if (!panel.running) {
+                panel.logArea.setText("");
+                panel.bfsVisual();
+            }
         });
 
         resetBtn.addActionListener(e -> panel.resetGrid());
 
-        JPanel controls = new JPanel();
-        controls.add(startBtn);
-        controls.add(resetBtn);
+        JPanel controlPanel = new JPanel();
+        controlPanel.add(startBtn);
+        controlPanel.add(resetBtn);
 
-        frame.setLayout(new BorderLayout());
-        frame.add(panel, BorderLayout.CENTER);
-        frame.add(controls, BorderLayout.SOUTH);
+        JPanel leftPanel = new JPanel(new BorderLayout());
+        leftPanel.add(panel, BorderLayout.CENTER);
+        leftPanel.add(controlPanel, BorderLayout.SOUTH);
+
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.add(new JLabel("🧠 BFS Internal Working", SwingConstants.CENTER), BorderLayout.NORTH);
+        rightPanel.add(scroll, BorderLayout.CENTER);
+
+        frame.setLayout(new GridLayout(1, 2));
+        frame.add(leftPanel);
+        frame.add(rightPanel);
+
         frame.pack();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
